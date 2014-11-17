@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+  	<head>
+    	<title>Facebook API Explorer without paging</title>
+    	<meta charset="utf-8">
+
+    	<!--references of css style-->
+    	<link href="http://w3resource.com/twitter-bootstrap/twitter-bootstrap-v2/docs/assets/css/bootstrap.css" rel="stylesheet"> 
+	    <link href="http://getbootstrap.com/2.3.2/assets/css/bootstrap.css" rel="stylesheet" type="text/css" />
+	    <link href="http://getbootstrap.com/2.3.2/assets/css/bootstrap-responsive.css" rel="stylesheet" type="text/css" />
+
+	    <!--references if some js template-->
+	    <script src="http://getbootstrap.com/2.3.2/assets/js/bootstrap.js"></script>
+
+	    <style type="text/css">
+            /*json syntaxHighlight style */
+		    pre {outline: 1px solid #ccc; padding: 5px; margin: 5px; }
+			.string { color: green; }
+			.number { color: darkorange; }
+			.boolean { color: blue; }
+			.null { color: magenta; }
+			.key { color: red; }
+	    </style>
+	</head>    
+
+  	<body>
+        <!--Facebook login/logout system buttons with app -->  
+  		<div>
+			<button class = "btn btn-link" id = "user-info" class = "muted"></button>
+			<button type = "button" class = "btn" id = "fb-auth"></button>
+		</div>
+
+        <!--Querying fields --> 
+		<div class="input-append">
+			<input class="input-xxlarge" type="text" id = "inputfield">
+			<button type = "button" class = "btn" id = "submitBtn" onclick = "submit()">Submit</button>
+		</div>
+
+	  	<!--Facebook Graph API link --> 	
+	  	<div>
+			<a href = "https://developers.facebook.com/tools/explorer/145634995501895/?method=GET&amp;path=me%2Flocations%3Ffields%3Did&amp;version=v1.0" target="_blank">Original Facebook Graph API Explorer</a>
+		</div>
+
+        <!--Simple viewer for json format responses -->
+		<pre id = "content"></pre>	
+
+    	<div id="fb-root"></div>
+
+    	<script>
+            var button;
+            var userInfo;
+            var ACCESS_TOKEN;
+            
+            /*
+                1. Facebook login/logout system from http://thinkdiff.net/facebook/new-javascript-sdk-oauth-2-0-based-fbconnect-tutorial/
+            */
+            window.fbAsyncInit = function() 
+            {
+                 FB.init({ appId: '209749319230763', //change the appId to your appId
+                    status: true, 
+                    cookie: true,
+                    xfbml: true,
+                    oauth: true});
+               
+               function updateButton(response) 
+               {
+                    button       =   document.getElementById('fb-auth');
+                    userInfo     =   document.getElementById('user-info');
+                    
+                    if (response.authResponse) 
+                    {
+                        //user is already logged in and connected
+                        FB.api('/me', function(info) {
+                            login(response, info);
+                        });
+                        
+                        button.onclick = function() {
+                            FB.logout(function(response) {
+                                logout(response);
+                            });
+                        };
+                    } 
+                    else 
+                    {
+                        //user is not connected to your app or logged out
+                        button.innerHTML = '<i class="icon-user icon-white"></i> '+'Log in';
+                        button.onclick = function() 
+                        {
+                            FB.login(function(response) {
+                                if (response.authResponse) {
+                                    FB.api('/me', function(info) {
+                                        login(response, info);
+                                    });    
+                                }
+                            }, {scope:'email,user_birthday,status_update,publish_stream,user_about_me,export_stream,read_stream,user_friends'});   
+                        }
+                    }
+                }
+                
+                // run once with current status and whenever the status changes
+                FB.getLoginStatus(updateButton);
+                FB.Event.subscribe('auth.statusChange', updateButton);  
+            };
+
+            (function() {
+                var e = document.createElement('script'); e.async = true;
+                e.src = document.location.protocol 
+                    + '//connect.facebook.net/en_US/all.js';
+                document.getElementById('fb-root').appendChild(e);
+            }());
+                        
+            function login(response, info)
+            {
+                if (response.authResponse) 
+                {
+                    var accessToken = response.authResponse.accessToken;           
+                    userInfo.innerHTML ='<img src="https://graph.facebook.com/' + info.id + '/picture" height="24" width="24">  ' + info.name;
+                    button.innerHTML = '<i class="icon-user icon-black"></i> '+'Log out';
+
+                    var inputfield = document.getElementById('inputfield');
+                    inputfield.value = info.id+"/locations?fields=id";
+
+                    ACCESS_TOKEN = accessToken;
+                }
+            }
+        
+            function logout(response)
+            {
+                userInfo.innerHTML                             =   "";
+                document.getElementById('debug').innerHTML     =   "";
+            }
+
+            /*
+                2. json format pretty-printer from http://stackoverflow.com/questions/4810841/how-can-i-pretty-print-json-using-javascript
+            */
+			function output(inp) 
+            {
+				var content = document.getElementById('content');
+			    content.innerHTML = inp;
+			}
+
+            function syntaxHighlight(json) 
+            {
+			    if (typeof json != 'string') {
+			         json = JSON.stringify(json, undefined, 2);
+			    }
+			    json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+			    return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+			        var cls = 'number';
+			        if (/^"/.test(match)) {
+			            if (/:$/.test(match)) {
+			                cls = 'key';
+			            } else {
+			                cls = 'string';
+			            }
+			        } else if (/true|false/.test(match)) {
+			            cls = 'boolean';
+			        } else if (/null/.test(match)) {
+			            cls = 'null';
+			        }
+			        return '<span class="' + cls + '">' + match + '</span>';
+    			});
+			}
+
+            /*
+                3. Submit, and then send HTTPRequest to server.js
+            */
+            function submit()
+            {
+                content.innerHTML = "<div class=\"container\"><img src=\"images/loading.gif\"></img></div>";
+
+                function requestListener()
+                {   
+                    var data = JSON.parse(this.responseText);
+                    var str = JSON.stringify(data, undefined, 4);
+
+                    output(syntaxHighlight(str));
+                }
+
+                /*
+                    Get the query request from inputfield
+                */
+                var inputfield = document.getElementById('inputfield').value,
+                    inputfieldArray = inputfield.split("/");
+
+                var userid = inputfieldArray[0];        // me
+
+                inputfieldArray = inputfieldArray[1].split("?");
+
+                var queryfield = inputfieldArray[0],    // locations
+                    detailfield = inputfieldArray[1];   // ?fields=id&limit=250
+
+                /*
+                    Send and get HttpRequest from node.js express() library
+                */
+                var oReq = new XMLHttpRequest();
+                oReq.onload = requestListener;
+                var qurl = "api" + "?userid=" + userid
+                                 + "&queryfield=" + queryfield
+                                 + "&detailfield=" + detailfield
+                                 + "&token=" + ACCESS_TOKEN;
+
+                oReq.open("get", qurl, true);
+                oReq.send();
+            }
+    	</script>
+  	</body>
+</html>
